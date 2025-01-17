@@ -10,10 +10,11 @@ const DisplacementMap = () => {
   useEffect(() => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 1.5;
+    camera.position.z = 3;
 
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
     mountRef.current.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -21,33 +22,57 @@ const DisplacementMap = () => {
     const axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
 
-    const light = new THREE.DirectionalLight(0xffffff, 10);
-    light.position.set(1, 1, 1);
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(6, 6, 6);
     scene.add(light);
+    const ambientLight = new THREE.AmbientLight(0x404040, 1);  // Мягкий белый свет
+scene.add(ambientLight);
 
-    const planeGeometry = new THREE.PlaneGeometry(1, 1, 100, 100);
+
+    // Заменили PlaneGeometry на BoxGeometry
+    const boxWidth = 1;
+    const boxHeight = 1;
+    const boxDepth = 0.1;
+
+    const boxGeometry = new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth, 100, 100, 100);
+    boxGeometry.computeVertexNormals();
+    // Создаём материал
     const material = new THREE.MeshStandardMaterial();
     const textureLoader = new THREE.TextureLoader();
 
-    const texture = textureLoader.load('/img/test.png');
-    material.map = texture;
+    const texture = textureLoader.load('/img/test2.png');
+    // material.map = texture;
+    // material.displacementMap = textureLoader.load('/img/test2.png');
+    // material.displacementScale = 0.1;
 
-    const displacementMap = textureLoader.load('/img/test.png');
-    material.displacementMap = displacementMap;
+    // Создаём массив материалов для каждой стороны куба
+    const materials = [
+        new THREE.MeshStandardMaterial({ color: 0xeeeeee, side: THREE.DoubleSide }),  // Верхняя сторона
+        new THREE.MeshStandardMaterial({ color: 0xeeeeee, side: THREE.DoubleSide }),  // Нижняя сторона
+        new THREE.MeshStandardMaterial({ color: 0xeeeeee, side: THREE.DoubleSide }),  // Левая сторона
+        new THREE.MeshStandardMaterial({ color: 0xeeeeee, side: THREE.DoubleSide }),  // Правая сторона
+        new THREE.MeshStandardMaterial({ color: 0xeeeeee, side: THREE.DoubleSide }),  // Передняя сторона с картой
+        new THREE.MeshStandardMaterial({ color: 0xeeeeee, side: THREE.DoubleSide }),  // Задняя сторона
+      ];
 
-    material.displacementScale = 0.1;
+    // Применяем displacementMap только к передней стороне
+    materials[4].map = texture;
+    materials[4].displacementMap = texture;
+    materials[4].displacementScale = 0.1;
 
-    const plane = new THREE.Mesh(planeGeometry, material);
-    scene.add(plane);
+    const box = new THREE.Mesh(boxGeometry, materials);
+    scene.add(box);
 
     const stats = new Stats();
     document.body.appendChild(stats.dom);
 
     const gui = new GUI();
 
-    // Настройки для материала
-    const materialFolder = gui.addFolder('THREE.Material');
-    materialFolder.add(material, 'transparent').onChange(() => (material.needsUpdate = true));
+    // Добавление контролов для каждого материала
+    const materialFolder = gui.addFolder('Material Controls');
+    materialFolder.add(material, 'transparent').onChange(() => {
+      materials.forEach((mat) => mat.needsUpdate = true);
+    });
     materialFolder.add(material, 'opacity', 0, 1, 0.01);
     materialFolder.add(material, 'depthTest');
     materialFolder.add(material, 'depthWrite');
@@ -65,50 +90,57 @@ const DisplacementMap = () => {
       emissive: material.emissive.getHex(),
     };
 
-    const meshStandardMaterialFolder = gui.addFolder('THREE.MeshStandardMaterial');
+    const meshStandardMaterialFolder = gui.addFolder('Mesh Standard Material');
     meshStandardMaterialFolder.addColor(data, 'color').onChange(() => {
-      material.color.setHex(Number(data.color.toString().replace('#', '0x')));
+      materials.forEach((mat) => mat.color.setHex(Number(data.color.toString().replace('#', '0x'))));
     });
-    meshStandardMaterialFolder.addColor(data, 'emissive').onChange(() => {
-      material.emissive.setHex(Number(data.emissive.toString().replace('#', '0x')));
-    });
-    meshStandardMaterialFolder.add(material, 'wireframe');
-    meshStandardMaterialFolder.add(material, 'flatShading').onChange(() => updateMaterial());
-    meshStandardMaterialFolder.add(material, 'displacementScale', -1, 1, 0.01);
-    meshStandardMaterialFolder.add(material, 'displacementBias', -1, 1, 0.01);
-    meshStandardMaterialFolder.add(material, 'roughness', 0, 1);
-    meshStandardMaterialFolder.add(material, 'metalness', 0, 1);
+    // meshStandardMaterialFolder.addColor(data, 'emissive').onChange(() => {
+    //   materials.forEach((mat) => mat.emissive.setHex(Number(data.emissive.toString().replace('#', '0x'))));
+    // });
+    meshStandardMaterialFolder.add(materials[4], 'wireframe');
+    meshStandardMaterialFolder.add(materials[4], 'flatShading').onChange(() => updateMaterial());
+    meshStandardMaterialFolder.add(materials[4], 'displacementScale', 0, 0.1, 0.01);
+
+    meshStandardMaterialFolder.add(materials[4], 'roughness', 0, 1);
+    meshStandardMaterialFolder.add(materials[4], 'metalness', 0, 1);
     meshStandardMaterialFolder.open();
 
     // Настройки для геометрии
-    const planeData = {
-      width: 3.6,
-      height: 1.8,
-      widthSegments: 180,
-      heightSegments: 90,
+    const boxData = {
+      width: boxWidth,
+      height: boxHeight,
+      depth: boxDepth,
+      widthSegments: 100,
+      heightSegments: 100,
+      depthSegments: 1,
     };
 
-    const planePropertiesFolder = gui.addFolder('PlaneGeometry');
-    planePropertiesFolder.add(planeData, 'widthSegments', 1, 360).onChange(regeneratePlaneGeometry);
-    planePropertiesFolder.add(planeData, 'heightSegments', 1, 180).onChange(regeneratePlaneGeometry);
-    planePropertiesFolder.add(planeData, 'width', 0.1, 10).onChange(regeneratePlaneGeometry);
-    planePropertiesFolder.add(planeData, 'height', 0.1, 10).onChange(regeneratePlaneGeometry);
-    planePropertiesFolder.open();
+    const boxPropertiesFolder = gui.addFolder('Box Geometry');
+    boxPropertiesFolder.add(boxData, 'widthSegments', 1, 200).onChange(regenerateBoxGeometry);
+    boxPropertiesFolder.add(boxData, 'heightSegments', 1, 200).onChange(regenerateBoxGeometry);
+   
+    boxPropertiesFolder.add(boxData, 'width', 0.1, 10).onChange(regenerateBoxGeometry);
+    boxPropertiesFolder.add(boxData, 'height', 0.1, 10).onChange(regenerateBoxGeometry);
+    boxPropertiesFolder.add(boxData, 'depth', 0.01, 0.1).onChange(regenerateBoxGeometry);
+    boxPropertiesFolder.open();
 
-    function regeneratePlaneGeometry() {
-      const newGeometry = new THREE.PlaneGeometry(
-        planeData.width,
-        planeData.height,
-        planeData.widthSegments,
-        planeData.heightSegments
+    function regenerateBoxGeometry() {
+      const newGeometry = new THREE.BoxGeometry(
+        boxData.width,
+        boxData.height,
+        boxData.depth,
+        boxData.widthSegments,
+        boxData.heightSegments,
+        boxData.depthSegments
       );
-      plane.geometry.dispose();
-      plane.geometry = newGeometry;
+      box.geometry.dispose();
+      box.geometry = newGeometry;
     }
 
     function updateMaterial() {
-      material.side = Number(material.side);
-      material.needsUpdate = true;
+      materials.forEach((mat) => {
+        mat.needsUpdate = true;
+      });
     }
 
     const animate = () => {
