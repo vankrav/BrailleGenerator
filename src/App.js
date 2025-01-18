@@ -1,13 +1,12 @@
 import React from 'react';
-import DisplacementMap from './DisplacementMap';
 
-
+import BrailleCanvas from './components/BrailleCanvas';
 function App() {
   
 
   return (
     <div>
-      <DisplacementMap />
+      <BrailleCanvas />
     </div>
   );
 }
